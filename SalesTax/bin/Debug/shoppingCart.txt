@@ -1,0 +1,9 @@
+book,false,15
+music CD,false,15
+chocolate bar,false,5
+imported box of chocolates,true,8
+imported bottle of perfume,true,40
+imported bottle of perfume,true,40
+bottle of perfume,false,25
+packet of headache pills,false,8
+box of imported chocolates,true,8
