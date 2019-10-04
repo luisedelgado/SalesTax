@@ -1,50 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using static SalesTax.CashRegister;
 
 namespace SalesTax
 {
-    class Test
-    {
-        static void Main(string[] args)
-        {
-            string[] exemptedFood = new string[] {
-                "chocolate bar",
-                "imported box of chocolates",
-                "box of imported chocolates" };
-
-            string[] exemptedBooks = new string[] {
-                "book",
-                "imported book" };
-
-            string[] exemptedMedProducts = new string[] {
-                "packet of headache pills" };
-
-            CashRegister register = new CashRegister(exemptedFood, exemptedBooks, exemptedMedProducts);
-
-            List<DetailedGood> shoppingBasket = LoadBasket();
-
-            register.ScanShoppingBasket(shoppingBasket);
-            register.GetReceipt();
-        }
-
-        private static List<DetailedGood> LoadBasket()
-        {
-            List<DetailedGood> basket = new List<DetailedGood>();
-            basket.Add(new DetailedGood("book", false, 15));
-            basket.Add(new DetailedGood("music CD", false, 15));
-            basket.Add(new DetailedGood("chocolate bar", false, 5));
-            basket.Add(new DetailedGood("imported box of chocolates", true, 8));
-            basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
-            basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
-            basket.Add(new DetailedGood("bottle of perfume", false, 25));
-            basket.Add(new DetailedGood("packet of headache pills", false, 8));
-            basket.Add(new DetailedGood("box of imported chocolates", true, 8));
-
-            return basket;
-        }
-    }
-
     /// <summary>
     /// Public class to model a Cash Register
     /// </summary>
@@ -141,21 +101,21 @@ namespace SalesTax
         {
             foreach (DetailedGood good in detailedGoods)
             {
-                if(ExemptedFoodInventory.Contains(good.Description))
+                if (ExemptedFoodInventory.Contains(good.Description))
                 {
                     BasketGoods.Push(new Food(good.Description, good.IsImported, good.Price));
                 }
                 else if (ExemptedBooksInventory.Contains(good.Description))
                 {
-                   BasketGoods.Push(new Book(good.Description, good.IsImported, good.Price));
+                    BasketGoods.Push(new Book(good.Description, good.IsImported, good.Price));
                 }
                 else if (ExemptedMedicalProductsInventory.Contains(good.Description))
                 {
-                   BasketGoods.Push(new MedicalProduct(good.Description, good.IsImported, good.Price));
+                    BasketGoods.Push(new MedicalProduct(good.Description, good.IsImported, good.Price));
                 }
                 else
                 {
-                   BasketGoods.Push(new Good(good.Description, good.IsImported, good.Price));
+                    BasketGoods.Push(new Good(good.Description, good.IsImported, good.Price));
                 }
             }
         }
@@ -163,20 +123,54 @@ namespace SalesTax
         /// <summary>
         /// Get purchase details from receipt
         /// </summary>
-        public void GetReceipt()
+        public Receipt GetReceipt()
         {
-            new Receipt(this.BasketGoods).PrintReceiptDetails();
+            return new Receipt(this.BasketGoods);
         }
 
         /// <summary>
         /// Private class to model a receipt
         /// </summary>
-        private class Receipt
+        public class Receipt
         {
             private const double SalesTaxRate = .1;
             private const double ImportTax = .05;
 
             private Dictionary<string, Good> PurchasedGoods;
+
+            /// <summary>
+            /// Wrapper for final and detailed information of purchase
+            /// </summary>
+            public struct ReceiptDetails
+            {
+                /// <summary>
+                /// Struct constructor
+                /// </summary>
+                /// <param name="goodsDetails">List of objects containing the quantity bought, the item description, and the total cost for this item kind</param>
+                /// <param name="salesTax"></param>
+                /// <param name="totalCost"></param>
+                public ReceiptDetails(List<Tuple<int, string, double>> goodsDetails, double salesTax, double totalCost)
+                {
+                    this.TotalCost = totalCost;
+                    this.SalesTax = salesTax;
+                    this.GoodsDetails = goodsDetails;
+                }
+
+                /// <summary>
+                /// List of Tuple objects where we maintain information about quantities bought, descriptions, and total cost of each item
+                /// </summary>
+                public List<Tuple<int, string, double>> GoodsDetails { get; }
+
+                /// <summary>
+                /// Sales tax
+                /// </summary>
+                public double SalesTax { get; }
+
+                /// <summary>
+                /// Total cost
+                /// </summary>
+                public double TotalCost { get; }
+            }
 
             /// <summary>
             /// Class constructor. It takes in a collection and builds a map of goods and the respective quantities of each
@@ -190,7 +184,7 @@ namespace SalesTax
                 {
                     Good currentGood = basketGoods.Pop();
 
-                    if(PurchasedGoods.ContainsKey(currentGood.Description))
+                    if (PurchasedGoods.ContainsKey(currentGood.Description))
                     {
                         PurchasedGoods[currentGood.Description].Quantity++;
                     }
@@ -202,16 +196,17 @@ namespace SalesTax
             }
 
             /// <summary>
-            /// Prints the cost details of a basket. It gives the total cost of an item, as well as the final breakdown of sales tax vs. total cost
+            /// Helper internal function that calculates the total cost and breakdown of the sale and returns an object with all the relevant information
             /// </summary>
-            public void PrintReceiptDetails()
+            private ReceiptDetails CalculateReceiptDetails()
             {
+                List<Tuple<int, string, double>> goodsDetails = new List<Tuple<int, string, double>>();
                 double totalSalesTax = 0;
                 double totalCost = 0;
 
-                foreach (KeyValuePair<string, Good> purchasedGood in PurchasedGoods)
+                foreach (KeyValuePair<string, Good> item in PurchasedGoods)
                 {
-                    Good currentGood = purchasedGood.Value;
+                    Good currentGood = item.Value;
 
                     double tax = currentGood.IsImported ? ImportTax : 0;
                     tax += currentGood.IsExemptFromSalesTax ? 0 : SalesTaxRate;
@@ -225,11 +220,103 @@ namespace SalesTax
                     totalCost += costPerQuantity;
                     totalSalesTax += (roundedTax * currentGood.Price * currentGood.Quantity);
 
-                    Console.WriteLine(purchasedGood.Value.Quantity + " " + purchasedGood.Key + ": " + costPerQuantity);
+                    goodsDetails.Add(new Tuple<int, string, double>(item.Value.Quantity, item.Key, costPerQuantity));
                 }
 
-                Console.WriteLine("Sales Tax: " + Math.Round(totalSalesTax, 2));
-                Console.WriteLine("Total: " + Math.Round(totalCost, 2));
+                return new ReceiptDetails(goodsDetails, Math.Round(totalSalesTax, 2), Math.Round(totalCost, 2));
+            }
+
+            /// <summary>
+            /// Prints the cost details of a basket. It gives the total cost of an item, as well as the final breakdown of sales tax vs. total cost
+            /// </summary>
+            public void PrintReceiptDetails()
+            {
+                ReceiptDetails details = CalculateReceiptDetails();
+
+                foreach (Tuple<int, string, double> detailedGood in details.GoodsDetails)
+                {
+                    Console.WriteLine(detailedGood.Item1 + " " + detailedGood.Item2 + ": " + detailedGood.Item3);
+                }
+
+                Console.WriteLine("Sales Tax: " + details.SalesTax);
+                Console.WriteLine("Total: " + details.TotalCost);
+            }
+
+            public static bool TestAllImportedGoods(string[] exemptedFood, string[] exemptedBooks, string[] exemptedMedProducts)
+            {
+                CashRegister register = new CashRegister(exemptedFood, exemptedBooks, exemptedMedProducts);
+
+                List<DetailedGood> basket = new List<DetailedGood>();
+                basket.Add(new DetailedGood("imported box of chocolates", true, 8));
+                basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
+                basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
+                basket.Add(new DetailedGood("box of imported chocolates", true, 8));
+
+                register.ScanShoppingBasket(basket);
+                Receipt receipt = register.GetReceipt();
+                ReceiptDetails details = receipt.CalculateReceiptDetails();
+
+                return details.GoodsDetails.Count == 3 && details.SalesTax == 12.8 && details.TotalCost == 108.8;
+            }
+
+            private static bool TestAllNotImportedGoods(string[] exemptedFood, string[] exemptedBooks, string[] exemptedMedProducts)
+            {
+                CashRegister register = new CashRegister(exemptedFood, exemptedBooks, exemptedMedProducts);
+
+                List<DetailedGood> basket = new List<DetailedGood>();
+                basket.Add(new DetailedGood("book", false, 15));
+                basket.Add(new DetailedGood("music CD", false, 15));
+                basket.Add(new DetailedGood("chocolate bar", false, 5));
+                basket.Add(new DetailedGood("bottle of perfume", false, 25));
+                basket.Add(new DetailedGood("packet of headache pills", false, 8));
+
+                register.ScanShoppingBasket(basket);
+                Receipt receipt = register.GetReceipt();
+                ReceiptDetails details = receipt.CalculateReceiptDetails();
+
+                return details.GoodsDetails.Count == 5 && details.SalesTax == 4 && details.TotalCost == 72;
+            }
+            private static bool TestImportedGoodsMix(string[] exemptedFood, string[] exemptedBooks, string[] exemptedMedProducts)
+            {
+                CashRegister register = new CashRegister(exemptedFood, exemptedBooks, exemptedMedProducts);
+
+                List<DetailedGood> basket = new List<DetailedGood>();
+                basket.Add(new DetailedGood("book", false, 15));
+                basket.Add(new DetailedGood("music CD", false, 15));
+                basket.Add(new DetailedGood("chocolate bar", false, 5));
+                basket.Add(new DetailedGood("imported box of chocolates", true, 8));
+                basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
+                basket.Add(new DetailedGood("imported bottle of perfume", true, 40));
+                basket.Add(new DetailedGood("bottle of perfume", false, 25));
+                basket.Add(new DetailedGood("packet of headache pills", false, 8));
+                basket.Add(new DetailedGood("box of imported chocolates", true, 8));
+
+                register.ScanShoppingBasket(basket);
+                Receipt receipt = register.GetReceipt();
+                ReceiptDetails details = receipt.CalculateReceiptDetails();
+
+                return details.GoodsDetails.Count == 8 && details.SalesTax == 16.8 && details.TotalCost == 180.8;
+            }
+
+            public static void Main(string[] args)
+            {
+                string[] exemptedFood = new string[] {
+                "chocolate bar",
+                "imported box of chocolates",
+                "box of imported chocolates" };
+
+                string[] exemptedBooks = new string[] {
+                "book",
+                "imported book" };
+
+                string[] exemptedMedProducts = new string[] {
+                "packet of headache pills" };
+
+                bool resultAllImported = TestAllImportedGoods(exemptedFood, exemptedBooks, exemptedMedProducts);
+                bool resultNoneImported = TestAllNotImportedGoods(exemptedFood, exemptedBooks, exemptedMedProducts);
+                bool resultImportedMix = TestImportedGoodsMix(exemptedFood, exemptedBooks, exemptedMedProducts);
+
+                Debug.Assert(resultAllImported && resultNoneImported && resultImportedMix, "One or more tests failed");
             }
         }
     }
@@ -288,7 +375,7 @@ namespace SalesTax
         /// <param name="isImported">Attribute to check if is imported</param>
         /// <param name="price">Price of food item</param>
         public Food(string description, bool isImported, double price) : base(description, isImported, price)
-        {            
+        {
             this.IsExemptFromSalesTax = true;
         }
     }
